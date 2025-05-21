@@ -585,6 +585,23 @@ class Visualizer {
           radius: 0.025,
           lw: 0,
         });
+      } else if (type == "leapfrog") {
+        // Color by halvings: use a color scale for better distinction
+        var halvings = event.trajectory[event.offset].halvings || 0;
+        var maxHalvings = 10; // or set dynamically if you know the max
+        var t = Math.min(halvings / maxHalvings, 1.0);
+        // HSV: h=0.6 (blue) to h=0 (red), s=0.2 to 1, v=1
+        var hsv = { h: 0.6 * t, s: 0.2 + 0.8 * t, v: 1 };
+        var rgb = Visualizer.HSVtoRGB(hsv);
+        var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+        // Draw a small arrow from 'from' to 'to'
+        this.drawArrow(this.overlayCanvas, {
+          from: event.trajectory[event.offset].from,
+          to: event.trajectory[event.offset].to,
+          color: fillColor,
+          lw: 2,
+          arrowScale: 2
+        });
       }
     }
 
