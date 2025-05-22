@@ -56,7 +56,7 @@ MCMC.registerAlgorithm("WALNUTS", {
     }
 
     function reversible(step, numSteps, q, p, grad, logp) {
-      if (numSteps < 2) return false; // base case: single step is always reversible
+      if (numSteps == 1) return true;
       let q_next = q.copy();
       let p_next = p.copy().scale(-1); // negate momentum
       let grad_next = grad.copy();
@@ -65,14 +65,12 @@ MCMC.registerAlgorithm("WALNUTS", {
         q_next = q.copy();
         p_next = p.copy().scale(-1);
         grad_next = grad.copy();
-        let nSteps = Math.floor(numSteps / 2);
-        let bigStep = step * 2;
+        numSteps = Math.floor(numSteps / 2);
+        step = step * 2;
         // Use within_tolerance for the error check
-        if (within_tolerance(bigStep, nSteps, q_next, p_next, grad_next, logp_next)) {
+        if (within_tolerance(step, numSteps, q_next, p_next, grad_next, logp_next)) {
           return false; // reversible
         }
-        numSteps = nSteps;
-        step = bigStep;
       }
       return true; // not reversible if loop completes
     }
@@ -117,20 +115,19 @@ MCMC.registerAlgorithm("WALNUTS", {
           if (logp_max - logp_min > self.maxError) break;
         }
         if (logp_max - logp_min <= self.maxError) {
-          if (!reversible(stepSize, numSteps, q0, p0, grad0, logp0)) {
-            found = true;
-            finalLeapfrogs = leapfrogs;
-            break;
-          }
+          found = !reversible(stepSize, numSteps, q0, p0, grad0, logp0);
+          finalLeapfrogs = leapfrogs;
+          break;
         }
       }
+      // TODO: I think this is almost certainly wrong
       var n_ = (found && u < Math.exp(logp1)) ? 1 : 0;
       var s_ = found ? 1 : 0;
       for (var lf of finalLeapfrogs) {
         trajectory.push(lf);
       }
       trajectory.push({
-        type: n_ == 1 && s_ == 1 ? "accept" : "reject",
+        type: found ? "accept" : "reject",
         from: q0.copy(),
         to: q1.copy(),
       });
@@ -193,22 +190,21 @@ MCMC.registerAlgorithm("WALNUTS", {
       q_p = self.chain.last().copy(),
       p_m = p0.copy(),
       p_p = p0.copy(),
-      j = 0,
       n = 1,
       s = 1;
 
-    while (s == 1) {
+    for (var depth = 0; depth < 12; depth++) {
       var v = Math.sign(Math.random() - 0.5);
       var q_, n_, s_;
       if (v == -1) {
-        var result = buildTree(q_m, p_m, u, v, j);
+        var result = buildTree(q_m, p_m, u, v, depth);
         q_m = result.q_m;
         p_m = result.p_m;
         q_ = result.q_;
         n_ = result.n_;
         s_ = result.s_;
       } else {
-        var result = buildTree(q_p, p_p, u, v, j);
+        var result = buildTree(q_p, p_p, u, v, depth);
         q_p = result.q_p;
         p_p = result.p_p;
         q_ = result.q_;
@@ -217,8 +213,8 @@ MCMC.registerAlgorithm("WALNUTS", {
       }
       if (s_ == 1 && Math.random() < n_ / n) q = q_.copy();
       s = s_ * (q_p.subtract(q_m).dot(p_m) >= 0 ? 1 : 0) * (q_p.subtract(q_m).dot(p_p) >= 0 ? 1 : 0);
+      if (s !== 1) break;
       n = n + n_;
-      j = j + 1;
     }
 
     self.chain.push(q.copy());
