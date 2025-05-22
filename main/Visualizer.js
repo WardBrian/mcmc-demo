@@ -403,12 +403,31 @@ class Visualizer {
           });
         } else {
           for (var i = 0; i < event.nuts_trajectory.length; ++i) {
-            var color = event.nuts_trajectory[i].type == "accept" ? this.nutsColor : "#f00";
-            this.drawPath(this.overlayCanvas, {
-              path: [event.nuts_trajectory[i].from, event.nuts_trajectory[i].to],
-              color: color,
-              lw: 1,
-            });
+            if (event.nuts_trajectory[i].type == "leapfrog") {
+              // Color by halvings: use a color scale for better distinction
+              var halvings = event.nuts_trajectory[i].halvings || 0;
+              var maxHalvings = 10; // or set dynamically if you know the max
+              var t = Math.min(halvings / maxHalvings, 1.0);
+              // HSV: h=0.6 (blue) to h=0 (red), s=0.2 to 1, v=1
+              var hsv = { h: 0.5 * t, s: 0.2 + 0.8 * t, v: 1 };
+              var rgb = Visualizer.HSVtoRGB(hsv);
+              var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+              // Draw a small arrow from 'from' to 'to'
+              this.drawArrow(this.overlayCanvas, {
+                from: event.nuts_trajectory[i].from,
+                to: event.nuts_trajectory[i].to,
+                color: fillColor,
+                lw: 2.2,
+                arrowScale: 0.8
+              });
+            } else {
+              var color = event.nuts_trajectory[i].type == "accept" ? this.nutsColor : "#f00";
+              this.drawPath(this.overlayCanvas, {
+                path: [event.nuts_trajectory[i].from, event.nuts_trajectory[i].to],
+                color: color,
+                lw: 1,
+              });
+            }
             if (event.nuts_trajectory[i].type == "accept")
               this.drawCircle(this.overlayCanvas, {
                 fill: this.nutsColor,
@@ -591,7 +610,7 @@ class Visualizer {
         var maxHalvings = 10; // or set dynamically if you know the max
         var t = Math.min(halvings / maxHalvings, 1.0);
         // HSV: h=0.6 (blue) to h=0 (red), s=0.2 to 1, v=1
-        var hsv = { h: 0.6 * t, s: 0.2 + 0.8 * t, v: 1 };
+        var hsv = { h: 0.5 * t, s: 0.2 + 0.8 * t, v: 1 };
         var rgb = Visualizer.HSVtoRGB(hsv);
         var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
         // Draw a small arrow from 'from' to 'to'
@@ -599,8 +618,8 @@ class Visualizer {
           from: event.trajectory[event.offset].from,
           to: event.trajectory[event.offset].to,
           color: fillColor,
-          lw: 2,
-          arrowScale: 2
+          lw: 2.2,
+          arrowScale: 0.5
         });
       }
     }
