@@ -1,10 +1,16 @@
 "use strict";
 
+// based on EfficentNUTS.js
+// and Bob Carpenter's C++ implementation.
+// Changes are localized to the j==0 case, replacing
+// the leapfrog step with a call to the WALNUTS macro step.
+
 MCMC.registerAlgorithm("WALNUTS", {
   description: "Sub-orbit adapation for the No-U-Turn Sampler",
 
   about: function () {
-    window.open("http://arxiv.org/abs/1111.4246");
+    // TODO: add real link
+    window.open("https://github.com/bob-carpenter/walnuts");
   },
 
   init: function (self) {
@@ -21,7 +27,6 @@ MCMC.registerAlgorithm("WALNUTS", {
     folder.open();
   },
 
-  // Notation adopted from http://arxiv.org/pdf/1111.4246v1.pdf
   step: function (self, visualizer) {
     var trajectory = [];
 
@@ -103,7 +108,7 @@ MCMC.registerAlgorithm("WALNUTS", {
           leapfrogs.push({
             type: "leapfrog",
             halvings: halvings,
-            from: (n === 0) ? q0.copy() : leapfrogs[leapfrogs.length - 1].to.copy(),
+            from: (n === 0) ? q0.copy() : leapfrogs[leapfrogs.length - 1].to,
             to: q1.copy(),
             stepSize: stepSize,
             step: n

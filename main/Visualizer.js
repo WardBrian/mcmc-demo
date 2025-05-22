@@ -408,8 +408,7 @@ class Visualizer {
               var halvings = event.nuts_trajectory[i].halvings || 0;
               var maxHalvings = 10; // or set dynamically if you know the max
               var t = Math.min(halvings / maxHalvings, 1.0);
-              // HSV: h=0.6 (blue) to h=0 (red), s=0.2 to 1, v=1
-              var hsv = { h: 0.5 * t, s: 0.2 + 0.8 * t, v: 1 };
+              var hsv = { h: 0.5 * t + 0.1, s: 0.2 + 0.8 * t, v: 1 };
               var rgb = Visualizer.HSVtoRGB(hsv);
               var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
               // Draw a small arrow from 'from' to 'to'
