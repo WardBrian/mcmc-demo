@@ -24,6 +24,7 @@ MCMC.registerAlgorithm("WALNUTS", {
 
   attachUI: function (self, folder) {
     folder.add(self, "dt", 0.025, 2.5).step(0.025).name("Leapfrog &Delta;t");
+    folder.add(self, "maxError", 0.01, 1).step(0.01).name("Max error");
     folder.open();
   },
 
