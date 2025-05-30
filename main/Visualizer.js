@@ -7,6 +7,7 @@ class Visualizer {
     this.yHistCanvas = yHistCanvas;
 
     this.queue = []; // events for visualization
+    this.draws = 0;
 
     this.xmin = -6; // in coordinate-space
     this.xmax = 6; // ymin, ymax set according to canvas aspect ratio
@@ -28,7 +29,7 @@ class Visualizer {
     this.contourColor = "#69b";
 
     this.histogramRatio = 0.2;
-    this.histBins = 50;
+    this.histBins = 65;
     this.histFillStyle = "#69b";
 
     // offscreen canvases to avoid expensive redraws
@@ -55,11 +56,12 @@ class Visualizer {
     this.yHistCanvas.height = this.canvas.height;
 
     // set ymin, ymax assuming equal aspect ratio
-    this.ymin = (this.xmin * this.canvas.height) / this.canvas.width;
-    this.ymax = (this.xmax * this.canvas.height) / this.canvas.width;
+    this.ymin = 2* (this.xmin * this.canvas.height) / this.canvas.width;
+    this.ymax = 2*(this.xmax * this.canvas.height) / this.canvas.width;
     // scale and origin (location of 0, 0)
     this.scale =
       width > height ? this.canvas.width / (this.xmax - this.xmin) : this.canvas.height / (this.ymax - this.ymin);
+    this.scale /= 2;
     this.origin = new Float64Array([
       this.canvas.width / 2,
       this.canvas.height / 2 + ((this.canvas.height / (this.ymax - this.ymin)) * (this.ymax + this.ymin)) / 2,
@@ -84,6 +86,7 @@ class Visualizer {
   reset() {
     // clear the queue
     this.queue = [];
+    this.draws = 0;
     // stop tweening
     this.tweening = false;
     // clear offscreen and onscreen canvases
@@ -408,7 +411,7 @@ class Visualizer {
               var halvings = event.nuts_trajectory[i].halvings || 0;
               var maxHalvings = 10; // or set dynamically if you know the max
               var t = Math.min(halvings / maxHalvings, 1.0);
-              var hsv = { h: 0.5 * t + 0.1, s: 0.2 + 0.8 * t, v: 1 };
+              var hsv = { h: 0.6 * t , s: 0.2 + 0.8 * t, v: 1 };
               var rgb = Visualizer.HSVtoRGB(hsv);
               var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
               // Draw a small arrow from 'from' to 'to'
@@ -417,7 +420,7 @@ class Visualizer {
                 to: event.nuts_trajectory[i].to,
                 color: fillColor,
                 lw: 2.2,
-                arrowScale: 0.8
+                arrowScale: 1.2,
               });
             } else {
               var color = event.nuts_trajectory[i].type == "accept" ? this.nutsColor : "#f00";
@@ -609,7 +612,7 @@ class Visualizer {
         var maxHalvings = 10; // or set dynamically if you know the max
         var t = Math.min(halvings / maxHalvings, 1.0);
         // HSV: h=0.6 (blue) to h=0 (red), s=0.2 to 1, v=1
-        var hsv = { h: 0.5 * t, s: 0.2 + 0.8 * t, v: 1 };
+        var hsv = { h: 0.6 * t , s: 0.2 + 0.8 * t, v: 1 };
         var rgb = Visualizer.HSVtoRGB(hsv);
         var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
         // Draw a small arrow from 'from' to 'to'
@@ -618,7 +621,7 @@ class Visualizer {
           to: event.trajectory[event.offset].to,
           color: fillColor,
           lw: 2.2,
-          arrowScale: 0.5
+          arrowScale: 1.2,
         });
       }
     }
@@ -661,7 +664,7 @@ class Visualizer {
         from: last,
         to: event.proposal,
         color: this.acceptColor,
-        lw: 2,
+        lw: .8,
       });
       this.drawSample(this.samplesCanvas, event.proposal);
       this.drawHistograms();
@@ -672,7 +675,7 @@ class Visualizer {
         from: last,
         to: event.proposal,
         color: this.rejectColor,
-        lw: 2,
+        lw: .8,
       });
       this.drawSample(this.samplesCanvas, last);
       this.drawHistograms();

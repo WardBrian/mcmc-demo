@@ -11,6 +11,7 @@ class Simulation {
     this.delay = 250;
     this.tweeningDelay = 0;
     this.autoplay = true;
+    this.skipviz = 0;
   }
   setAlgorithm(algorithmName) {
     console.log("Setting algorithm to " + algorithmName);
@@ -23,7 +24,7 @@ class Simulation {
     this.mcmc.step = MCMC.algorithms[algorithmName].step;
     this.mcmc.attachUI = MCMC.algorithms[algorithmName].attachUI;
     this.mcmc.about = MCMC.algorithms[algorithmName].about;
-    document.getElementById("info").innerHTML = this.mcmc.description;
+    // document.getElementById("info").innerHTML = this.mcmc.description;
     if (this.hasAlgorithm && this.hasTarget) {
       if (this.mcmc.initialized == false) this.mcmc.init(this.mcmc);
       this.mcmc.reset(this.mcmc);
@@ -153,7 +154,13 @@ class Simulation {
   step() {
     if (this.visualizer.queue.length == 0) this.mcmc.step(this.mcmc, this.visualizer);
     if (this.visualizer.animateProposal == false) {
+      this.skipviz = (this.skipviz + 1) % 10;
+      console.log("Skipping visualization step " + this.skipviz);
+      if (this.skipviz == 0) {
+        this.visualizer.queue = [this.visualizer.queue[this.visualizer.queue.length - 1]];
+      }
       while (this.visualizer.queue.length > 0) this.visualizer.dequeue();
+
     } else {
       this.visualizer.dequeue();
     }
@@ -169,11 +176,15 @@ class Simulation {
         });
       }, self.tweeningDelay);
     } else {
-      setTimeout(function () {
-        requestAnimationFrame(function () {
-          self.animate();
-        });
-      }, self.delay);
+      if (!this.visualizer.animateProposal && this.skipviz > 0) {
+        self.animate();
+      } else {
+        setTimeout(function () {
+          requestAnimationFrame(function () {
+            self.animate();
+          });
+        }, self.delay);
+      }
     }
   }
 }
@@ -208,6 +219,48 @@ window.onload = function () {
   function parseBool(value) {
     return value == "true";
   }
+
+  var animationSettingCounter = 1;
+  function keys(e) {
+    if (e.code === "KeyR") {
+      sim.reset();
+    }
+    if (e.code === "Space") {
+      sim.autoplay = !sim.autoplay;
+      if (sim.autoplay) {
+        document.getElementById("info").innerHTML = viz.animateProposal ? "" : "Fast forwarding...";
+      } else {
+        document.getElementById("info").innerHTML = "Paused";
+      }
+    }
+    if (e.code === "KeyE") {
+      if (sim.autoplay) {
+
+      animationSettingCounter = (animationSettingCounter + 1) % 2;
+
+      if (animationSettingCounter == 0) {
+        viz.animateProposal = false;
+        viz.delay = 0;
+        document.getElementById("info").innerHTML = "Fast forwarding...";
+        viz.showHistograms = true;
+      } else if (animationSettingCounter == 1) {
+        document.getElementById("info").innerHTML = "";
+
+        viz.animateProposal = true;
+        viz.delay = 250;
+        viz.showHistograms = false;
+
+        // todo -- tweak delta t, max error to force more animation?
+      }
+    }
+    }
+
+    if (e.code === "KeyS") {
+      sim.step();
+    }
+  }
+
+  window.addEventListener("keyup", keys, false);
 
   if (window.location.search != "") {
     var queryParams = getUrlVars();

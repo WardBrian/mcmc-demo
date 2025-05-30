@@ -12,7 +12,7 @@ MCMC.registerAlgorithm("WALNUTS", {
 
   init: function (self) {
     self.dt = 0.4;
-    self.maxError = 0.8;
+    self.maxError = 0.2;
   },
 
   reset: function (self) {
@@ -261,5 +261,9 @@ MCMC.registerAlgorithm("WALNUTS", {
       initialMomentum: rho.copy(),
     });
     visualizer.queue.push({ type: "accept", proposal: theta_select.copy() });
+
+    visualizer.draws += 1;
+    document.getElementById("drawNum").innerHTML = "Draw " + visualizer.draws;
+
   },
 });

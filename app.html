@@ -27,6 +27,7 @@
       }
       body {
         font-family: Arial, sans-serif;
+        font-size:x-large;
       }
       #github {
         display: inline-block;
@@ -37,11 +38,18 @@
       #info {
         display: inline-block;
         position: fixed;
-        top: 5px;
-        left: 5px;
+        top: 35px;
+        left: 250px;
       }
+       #drawNum {
+        display: inline-block;
+        position: fixed;
+        top: 75px;
+        left: 250px;
+       }
       .dg,
       .dg li.save-row .button {
+        visibility: hidden !important;
         text-shadow: none !important;
       }
       .dg.main.taller-than-window .close-button {
@@ -94,6 +102,8 @@
   </head>
   <body>
     <div id="info"></div>
+    <div id="drawNum"></div>
+
     <canvas id="plotCanvas" width="100%" height="100%"></canvas>
     <script src="main/MultivariateNormal.js"></script>
     <script src="main/MCMC.js"></script>
