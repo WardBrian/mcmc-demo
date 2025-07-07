@@ -7,7 +7,7 @@ MCMC.registerAlgorithm("WALNUTS", {
 
   about: function () {
     // TODO: add real link
-    window.open("https://github.com/bob-carpenter/walnuts");
+    window.open("https://arxiv.org/abs/2506.18746");
   },
 
   init: function (self) {
@@ -66,39 +66,29 @@ MCMC.registerAlgorithm("WALNUTS", {
       let q_next = q.copy();
       let p_next = p.copy();
       let grad_next = grad.copy();
-      let logp_next = logp;
       let halfStep = 0.5 * step;
-      let logp_min = logp_next;
-      let logp_max = logp_next;
+      let logp_initial = logp;
       for (let n = 0; n < numSteps; ++n) {
         p_next.increment(grad_next.scale(halfStep));
         q_next.increment(p_next.scale(step));
         grad_next = self.gradLogDensity(q_next);
         p_next.increment(grad_next.scale(halfStep));
-        logp_next = self.logDensity(q_next) - p_next.norm2() / 2;
-        logp_min = Math.min(logp_min, logp_next);
-        logp_max = Math.max(logp_max, logp_next);
-        if (logp_max - logp_min > self.maxError) {
-          return false;
-        }
       }
-      return true;
+      let logp_next = self.logDensity(q_next) - p_next.norm2() / 2;
+      return Math.abs(logp_next - logp_initial) <= self.maxError;
     }
 
     function reversible(step, numSteps, q, p, grad, logp) {
       if (numSteps == 1) return true;
-      let q_next = q.copy();
-      let p_next = p.copy().scale(-1); // negate momentum
-      let grad_next = grad.copy();
-      let logp_next = logp;
+      let q_next, p_next, grad_next;
       while (numSteps >= 2) {
         q_next = q.copy();
-        p_next = p.copy().scale(-1);
+        p_next = p.copy().scale(-1); // negate momentum
         grad_next = grad.copy();
         numSteps = Math.floor(numSteps / 2);
         step = step * 2;
-        // Use within_tolerance for the error check
-        if (within_tolerance(step, numSteps, q_next, p_next, grad_next, logp_next)) {
+        // If the backwards trajectory is within tolerance, it's not reversible
+        if (within_tolerance(step, numSteps, q_next, p_next, grad_next, logp)) {
           return false;
         }
       }
@@ -112,27 +102,21 @@ MCMC.registerAlgorithm("WALNUTS", {
       var logp_theta0 = logp_theta;
       var maxHalvings = 10;
       var macroStepReturn = true;
-      var theta_next, rho_next, grad_theta_next, logp_theta_next, logp_min, logp_max;
+      var theta_next, rho_next, grad_theta_next, logp_next;
       var finalLeapfrogs = [];
-      var origStep = Math.abs(self.dt);
-      var direction = v;
-      for (var halvings = 0, num_steps = 1, step = direction * origStep; halvings < maxHalvings; ++halvings, num_steps *= 2, step *= 0.5) {
+      var step = v * self.dt;
+
+      for (var halvings = 0, num_steps = 1; halvings < maxHalvings; ++halvings, num_steps *= 2, step *= 0.5) {
         theta_next = theta0.copy();
         rho_next = rho0.copy();
         grad_theta_next = grad_theta0.copy();
-        logp_theta_next = logp_theta0;
-        logp_min = logp_theta0;
-        logp_max = logp_theta0;
         var leapfrogs = [];
         var half_step = step / 2;
-        for (var n = 0; n < num_steps && logp_max - logp_min <= self.maxError; ++n) {
+        for (var n = 0; n < num_steps; ++n) {
           rho_next.increment(grad_theta_next.scale(half_step));
           theta_next.increment(rho_next.scale(step));
           grad_theta_next = self.gradLogDensity(theta_next);
           rho_next.increment(grad_theta_next.scale(half_step));
-          logp_theta_next = self.logDensity(theta_next) - rho_next.norm2() / 2;
-          logp_min = Math.min(logp_min, logp_theta_next);
-          logp_max = Math.max(logp_max, logp_theta_next);
           leapfrogs.push({
             type: "leapfrog",
             halvings: halvings,
@@ -142,26 +126,30 @@ MCMC.registerAlgorithm("WALNUTS", {
             step: n
           });
         }
-        if (logp_max - logp_min <= self.maxError) {
-          var rev = reversible(step, num_steps, theta_next, rho_next, grad_theta_next, logp_theta_next);
-          macroStepReturn = !rev;
-          finalLeapfrogs = leapfrogs;
-          break;
+        logp_next = self.logDensity(theta_next) - rho_next.norm2() / 2;
+        if (Math.abs(logp_theta0 - logp_next) <= self.maxError) {
+          var rev = reversible(step, num_steps, theta_next, rho_next, grad_theta_next, logp_next);
+          if (rev) {
+            // Trajectory is reversible, this is success
+            macroStepReturn = false; // false means success in C++
+            finalLeapfrogs = leapfrogs;
+            break;
+          }
         }
         macroStepReturn = true;
       }
       if (macroStepReturn) {
-        return null;
+        return null; // Failed to find valid trajectory
       }
 
       for (var lf of finalLeapfrogs) trajectory.push(lf);
       trajectory.push({
-        type: !macroStepReturn ? "accept" : "reject",
+        type: "accept", // Success case
         from: theta0.copy(),
         to: theta_next.copy(),
       });
       return make_leaf_span(
-        theta_next, rho_next, grad_theta_next, logp_theta_next
+        theta_next, rho_next, grad_theta_next, logp_next
       );
     }
 
@@ -174,8 +162,8 @@ MCMC.registerAlgorithm("WALNUTS", {
         span_bk = span2;
         span_fw = span1;
       }
-      var diff = span_fw.theta_fw_.subtract(span_fw.theta_bk_);
-      return (diff.dot(span_fw.rho_fw_) < 0) || (diff.dot(span_bk.rho_bk_) < 0);
+      var scaled_diff = span_fw.theta_fw_.subtract(span_fw.theta_bk_);
+      return (span_fw.rho_fw_.dot(scaled_diff) < 0) || (span_bk.rho_bk_.dot(scaled_diff) < 0);
     }
 
     function combine(span1, span2, useBarker, direction) {
@@ -190,7 +178,7 @@ MCMC.registerAlgorithm("WALNUTS", {
       }
       var update_logprob = logp2 - log_denominator;
       var update = Math.log(Math.random()) < update_logprob;
-      var theta_select = update ? span2.theta_select_.copy() : span1.theta_select_.copy();
+      var theta_select = update ? span2.theta_select_ : span1.theta_select_;
 
       var span_bk, span_fw;
       if (direction === 1) { // Forward
@@ -210,7 +198,9 @@ MCMC.registerAlgorithm("WALNUTS", {
       var rho = v === 1 ? span.rho_fw_ : span.rho_bk_;
       var grad_theta = v === 1 ? span.grad_theta_fw_ : span.grad_theta_bk_;
       var logp_theta = v === 1 ? span.logp_fw_ : span.logp_bk_;
-      return macro_step(theta, rho, grad_theta, logp_theta, v, trajectory);
+      var result = macro_step(theta, rho, grad_theta, logp_theta, v, trajectory);
+      // macro_step returns false on success, true on failure
+      return result;
     }
 
     function build_span(span, v, depth, trajectory) {
