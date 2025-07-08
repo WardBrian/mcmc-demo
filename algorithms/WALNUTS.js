@@ -234,7 +234,7 @@ MCMC.registerAlgorithm("WALNUTS", {
     var theta = self.chain.last().copy();
     var grad = self.gradLogDensity(theta);
     var logp = self.logDensity(theta) - rho.norm2() / 2;
-    var span_accum = new Span(theta.copy(), rho.copy(), grad.copy(), logp, theta.copy(), rho.copy(), grad.copy(), logp, theta.copy(), logp);
+    var span_accum = make_leaf_span(theta, rho, grad, logp);
     for (var depth = 0; depth < 12; depth++) {
       var direction = (Math.random() < 0.5) ? -1 : 1;
       var next_span = build_span(span_accum, direction, depth, trajectory);
