@@ -28,17 +28,17 @@ MCMC.registerAlgorithm("WALNUTS", {
   step: function (self, visualizer) {
     var trajectory = [];
 
-    function Span(q_bk, p_bk, grad_bk, logp_bk, q_fw, p_fw, grad_fw, logp_fw, q_sel, logp_sel) {
-      this.theta_bk_ = q_bk;
-      this.rho_bk_ = p_bk;
-      this.grad_theta_bk_ = grad_bk;
+    function Span(theta_bk, rho_bk, grad_theta_bk, logp_bk, theta_fw, rho_fw, grad_theta_fw, logp_fw, theta_select, logp) {
+      this.theta_bk_ = theta_bk;
+      this.rho_bk_ = rho_bk;
+      this.grad_theta_bk_ = grad_theta_bk;
       this.logp_bk_ = logp_bk;
-      this.theta_fw_ = q_fw;
-      this.rho_fw_ = p_fw;
-      this.grad_theta_fw_ = grad_fw;
+      this.theta_fw_ = theta_fw;
+      this.rho_fw_ = rho_fw;
+      this.grad_theta_fw_ = grad_theta_fw;
       this.logp_fw_ = logp_fw;
-      this.theta_select_ = q_sel;
-      this.logp_ = logp_sel;
+      this.theta_select_ = theta_select;
+      this.logp_ = logp;
     }
 
     function make_leaf_span(theta, rho, grad_theta, logp) {
@@ -62,95 +62,100 @@ MCMC.registerAlgorithm("WALNUTS", {
       return m + Math.log(Math.exp(x - m) + Math.exp(y - m));
     }
 
-    function within_tolerance(step, numSteps, q, p, grad, logp) {
-      let q_next = q.copy();
-      let p_next = p.copy();
-      let grad_next = grad.copy();
-      let halfStep = 0.5 * step;
-      let logp_initial = logp;
-      for (let n = 0; n < numSteps; ++n) {
-        p_next.increment(grad_next.scale(halfStep));
-        q_next.increment(p_next.scale(step));
-        grad_next = self.gradLogDensity(q_next);
-        p_next.increment(grad_next.scale(halfStep));
+    function within_tolerance(step, num_steps, theta_next, rho_next, grad_next, logp_next) {
+
+      let half_step = 0.5 * step;
+      let logp = logp_next;
+      for (let n = 0; n < num_steps; ++n) {
+        rho_next.increment(grad_next.scale(half_step));
+        theta_next.increment(rho_next.scale(step));
+        grad_next = self.gradLogDensity(theta_next);
+        rho_next.increment(grad_next.scale(half_step));
       }
-      let logp_next = self.logDensity(q_next) - p_next.norm2() / 2;
-      return Math.abs(logp_next - logp_initial) <= self.maxError;
+
+      let final_logp = self.logDensity(theta_next) + (-rho_next.norm2() / 2);
+      return Math.abs(final_logp - logp) <= self.maxError;
     }
 
-    function reversible(step, numSteps, q, p, grad, logp) {
-      if (numSteps == 1) return true;
-      let q_next, p_next, grad_next;
-      while (numSteps >= 2) {
-        q_next = q.copy();
-        p_next = p.copy().scale(-1); // negate momentum
+    function reversible(step, num_steps, theta, rho, grad, logp_next) {
+      if (num_steps == 1) return true;
+      let theta_next, rho_next, grad_next;
+      while (num_steps >= 2) {
+        theta_next = theta.copy();
+        rho_next = rho.copy().scale(-1); // negate momentum
         grad_next = grad.copy();
-        numSteps = Math.floor(numSteps / 2);
+        num_steps = Math.floor(num_steps / 2);
         step = step * 2;
         // If the backwards trajectory is within tolerance, it's not reversible
-        if (within_tolerance(step, numSteps, q_next, p_next, grad_next, logp)) {
+        if (within_tolerance(step, num_steps, theta_next, rho_next, grad_next, logp_next)) {
           return false;
         }
       }
       return true;
     }
 
-    function macro_step(theta, rho, grad_theta, logp_theta, v, trajectory) {
-      var theta0 = theta.copy();
-      var rho0 = rho.copy();
-      var grad_theta0 = grad_theta.copy();
-      var logp_theta0 = logp_theta;
-      var maxHalvings = 10;
-      var macroStepReturn = true;
-      var theta_next, rho_next, grad_theta_next, logp_next;
-      var finalLeapfrogs = [];
-      var step = v * self.dt;
+    function macro_step(span, direction, trajectory) {
+      const is_forward = (direction === 1);
+      const theta = is_forward ? span.theta_fw_ : span.theta_bk_;
+      const rho = is_forward ? span.rho_fw_ : span.rho_bk_;
+      const grad = is_forward ? span.grad_theta_fw_ : span.grad_theta_bk_;
+      const logp = is_forward ? span.logp_fw_ : span.logp_bk_;
 
-      for (var halvings = 0, num_steps = 1; halvings < maxHalvings; ++halvings, num_steps *= 2, step *= 0.5) {
-        theta_next = theta0.copy();
-        rho_next = rho0.copy();
-        grad_theta_next = grad_theta0.copy();
+      var step = is_forward ? self.dt : -self.dt;
+      var theta_next, rho_next, grad_next, logp_next;
+
+      for (var num_steps = 1, halvings = 0; halvings < 10; ++halvings, num_steps *= 2, step *= 0.5) {
+        // Reset to initial state for this attempt
+        theta_next = theta.copy();
+        rho_next = rho.copy();
+        grad_next = grad.copy();
+
         var leapfrogs = [];
-        var half_step = step / 2;
+        var half_step = 0.5 * step;
+
+        // Leapfrog integration for num_steps
         for (var n = 0; n < num_steps; ++n) {
-          rho_next.increment(grad_theta_next.scale(half_step));
+          rho_next.increment(grad_next.scale(half_step));
           theta_next.increment(rho_next.scale(step));
-          grad_theta_next = self.gradLogDensity(theta_next);
-          rho_next.increment(grad_theta_next.scale(half_step));
+          grad_next = self.gradLogDensity(theta_next);
+          rho_next.increment(grad_next.scale(half_step));
           leapfrogs.push({
             type: "leapfrog",
             halvings: halvings,
-            from: (n === 0) ? theta0.copy() : leapfrogs[leapfrogs.length - 1].to.copy(),
+            from: (n === 0) ? theta.copy() : leapfrogs[leapfrogs.length - 1].to.copy(),
             to: theta_next.copy(),
-            stepSize: step,
+            stepSize: Math.abs(step),
             step: n
           });
         }
-        logp_next = self.logDensity(theta_next) - rho_next.norm2() / 2;
-        if (Math.abs(logp_theta0 - logp_next) <= self.maxError) {
-          var rev = reversible(step, num_steps, theta_next, rho_next, grad_theta_next, logp_next);
-          if (rev) {
-            // Trajectory is reversible, this is success
-            macroStepReturn = false; // false means success in C++
-            finalLeapfrogs = leapfrogs;
-            break;
-          }
-        }
-        macroStepReturn = true;
-      }
-      if (macroStepReturn) {
-        return null; // Failed to find valid trajectory
-      }
 
-      for (var lf of finalLeapfrogs) trajectory.push(lf);
-      trajectory.push({
-        type: "accept", // Success case
-        from: theta0.copy(),
-        to: theta_next.copy(),
-      });
-      return make_leaf_span(
-        theta_next, rho_next, grad_theta_next, logp_next
-      );
+        logp_next = self.logDensity(theta_next) + (-rho_next.norm2() / 2);
+
+        // Check error tolerance first
+        if (Math.abs(logp - logp_next) <= self.maxError) {
+          // If within tolerance, check reversibility and return that result
+          var is_reversible = reversible(step, num_steps, theta_next, rho_next, grad_next, logp_next);
+          if (is_reversible) {
+            // Success case - store final leapfrogs only if reversible
+            for (var lf of leapfrogs) trajectory.push(lf);
+            trajectory.push({
+              type: "accept",
+              from: theta.copy(),
+              to: theta_next.copy(),
+            });
+          }
+          // Return the result as an object to match C++ out parameters
+          return {
+            success: is_reversible,
+            theta_next: theta_next,
+            rho_next: rho_next,
+            grad_next: grad_next,
+            logp_next: logp_next
+          };
+        }
+        // If not within tolerance, continue to next halving attempt
+      }
+      return { success: false }; // Failed after all halvings
     }
 
     function uturn(span1, span2, direction) {
@@ -166,93 +171,93 @@ MCMC.registerAlgorithm("WALNUTS", {
       return (span_fw.rho_fw_.dot(scaled_diff) < 0) || (span_bk.rho_bk_.dot(scaled_diff) < 0);
     }
 
-    function combine(span1, span2, useBarker, direction) {
-      var logp1 = span1.logp_;
-      var logp2 = span2.logp_;
-      var logp_total = log_sum_exp(logp1, logp2);
+    function combine(span_old, span_new, use_barker, direction) {
+      var logp_old = span_old.logp_;
+      var logp_new = span_new.logp_;
+      var logp_total = log_sum_exp(logp_old, logp_new);
       var log_denominator;
-      if (useBarker) {
+      if (use_barker) {
         log_denominator = logp_total;
       } else { // Metropolis
-        log_denominator = logp1;
+        log_denominator = logp_old;
       }
-      var update_logprob = logp2 - log_denominator;
+      var update_logprob = logp_new - log_denominator;
       var update = Math.log(Math.random()) < update_logprob;
-      var theta_select = update ? span2.theta_select_ : span1.theta_select_;
+      var theta_select = update ? span_new.theta_select_ : span_old.theta_select_;
 
       var span_bk, span_fw;
       if (direction === 1) { // Forward
-        span_bk = span1;
-        span_fw = span2;
+        span_bk = span_old;
+        span_fw = span_new;
       } else { // Backward
-        span_bk = span2;
-        span_fw = span1;
+        span_bk = span_new;
+        span_fw = span_old;
       }
       return make_combined_span(
         span_bk, span_fw, theta_select, logp_total
       );
     }
 
-    function build_leaf(span, v, trajectory) {
-      var theta = v === 1 ? span.theta_fw_ : span.theta_bk_;
-      var rho = v === 1 ? span.rho_fw_ : span.rho_bk_;
-      var grad_theta = v === 1 ? span.grad_theta_fw_ : span.grad_theta_bk_;
-      var logp_theta = v === 1 ? span.logp_fw_ : span.logp_bk_;
-      var result = macro_step(theta, rho, grad_theta, logp_theta, v, trajectory);
-      // macro_step returns false on success, true on failure
-      return result;
+    function build_leaf(span, direction, trajectory) {
+      var result = macro_step(span, direction, trajectory);
+
+      if (!result.success) {
+        return null;
+      }
+
+      return make_leaf_span(result.theta_next, result.rho_next, result.grad_next, result.logp_next);
     }
 
-    function build_span(span, v, depth, trajectory) {
+    function build_span(span, direction, depth, trajectory) {
       if (depth === 0) {
         // Macro step as leaf
-        return build_leaf(span, v, trajectory);
+        return build_leaf(span, direction, trajectory);
       }
-      var left = build_span(span, v, depth - 1, trajectory);
+      var left = build_span(span, direction, depth - 1, trajectory);
       if (!left) {
         return null;
       }
-      var right = build_span(left, v, depth - 1, trajectory);
+      var right = build_span(left, direction, depth - 1, trajectory);
       if (!right) {
         return null;
       }
-      if (uturn(left, right, v)) {
+      if (uturn(left, right, direction)) {
         return null;
       }
       // Barker update for subtree selection
-      var combined = combine(left, right, true, v);
+      var combined = combine(left, right, true, direction);
       return combined;
     }
 
     // transition
-    var p0 = MultivariateNormal.getSample(self.dim);
-    var q0 = self.chain.last().copy();
-    var grad0 = self.gradLogDensity(q0);
-    var logp0 = self.logDensity(q0) - p0.norm2() / 2;
-    var span_accum = new Span(q0.copy(), p0.copy(), grad0.copy(), logp0, q0.copy(), p0.copy(), grad0.copy(), logp0, q0.copy(), logp0);
+    var rho = MultivariateNormal.getSample(self.dim);
+    var theta = self.chain.last().copy();
+    var grad = self.gradLogDensity(theta);
+    var logp = self.logDensity(theta) - rho.norm2() / 2;
+    var span_accum = new Span(theta.copy(), rho.copy(), grad.copy(), logp, theta.copy(), rho.copy(), grad.copy(), logp, theta.copy(), logp);
     for (var depth = 0; depth < 12; depth++) {
-      var v = (Math.random() < 0.5) ? -1 : 1;
-      var next_span = build_span(span_accum, v, depth, trajectory);
+      var direction = (Math.random() < 0.5) ? -1 : 1;
+      var next_span = build_span(span_accum, direction, depth, trajectory);
       if (!next_span) {
         break;
       }
-      var combined_uturn = uturn(span_accum, next_span, v);
+      var combined_uturn = uturn(span_accum, next_span, direction);
       // Metropolis update for selection (top-level)
-      span_accum = combine(span_accum, next_span, false, v);
+      span_accum = combine(span_accum, next_span, false, direction);
       if (combined_uturn) {
         break;
       }
     }
 
-    var q = span_accum.theta_select_.copy();
-    self.chain.push(q.copy());
+    var theta_select = span_accum.theta_select_.copy();
+    self.chain.push(theta_select.copy());
 
     visualizer.queue.push({
       type: "proposal",
-      proposal: q.copy(),
+      proposal: theta_select.copy(),
       nuts_trajectory: trajectory,
-      initialMomentum: p0.copy(),
+      initialMomentum: rho.copy(),
     });
-    visualizer.queue.push({ type: "accept", proposal: q.copy() });
+    visualizer.queue.push({ type: "accept", proposal: theta_select.copy() });
   },
 });
