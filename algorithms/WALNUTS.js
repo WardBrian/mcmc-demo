@@ -162,7 +162,7 @@ MCMC.registerAlgorithm("WALNUTS", {
         span_bk = span2;
         span_fw = span1;
       }
-      var scaled_diff = span_fw.theta_fw_.subtract(span_fw.theta_bk_);
+      var scaled_diff = span_fw.theta_fw_.subtract(span_bk.theta_bk_);
       return (span_fw.rho_fw_.dot(scaled_diff) < 0) || (span_bk.rho_bk_.dot(scaled_diff) < 0);
     }
 
