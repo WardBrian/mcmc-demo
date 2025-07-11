@@ -154,8 +154,7 @@ class Simulation {
   step() {
     if (this.visualizer.queue.length == 0) this.mcmc.step(this.mcmc, this.visualizer);
     if (this.visualizer.animateProposal == false) {
-      this.skipviz = (this.skipviz + 1) % 10;
-      console.log("Skipping visualization step " + this.skipviz);
+      this.skipviz = (this.skipviz + 1) % 25;
       if (this.skipviz == 0) {
         this.visualizer.queue = [this.visualizer.queue[this.visualizer.queue.length - 1]];
       }
