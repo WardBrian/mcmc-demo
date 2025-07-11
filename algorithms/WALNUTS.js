@@ -135,15 +135,12 @@ MCMC.registerAlgorithm("WALNUTS", {
         if (Math.abs(logp - logp_next) <= self.maxError) {
           // If within tolerance, check reversibility and return that result
           var is_reversible = reversible(step, num_steps, theta_next, rho_next, grad_next, logp_next);
-          if (is_reversible) {
-            // Success case - store final leapfrogs only if reversible
-            for (var lf of leapfrogs) trajectory.push(lf);
-            trajectory.push({
-              type: "accept",
-              from: theta.copy(),
-              to: theta_next.copy(),
-            });
-          }
+          for (var lf of leapfrogs) trajectory.push(lf);
+          trajectory.push({
+            type: is_reversible ? "accept" : "reject",
+            from: theta.copy(),
+            to: theta_next.copy(),
+          });
           // Return the result as an object to match C++ out parameters
           return {
             success: is_reversible,
@@ -155,6 +152,11 @@ MCMC.registerAlgorithm("WALNUTS", {
         }
         // If not within tolerance, continue to next halving attempt
       }
+      trajectory.push({
+        type: "reject",
+        from: theta.copy(),
+        to: theta.copy(),
+      });
       return { success: false }; // Failed after all halvings
     }
 
