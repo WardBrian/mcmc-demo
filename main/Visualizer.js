@@ -277,6 +277,9 @@ class Visualizer {
     var from = this.transform(options.from);
     var to = this.transform(options.to);
     context.beginPath();
+    if (options.dashed === true) {
+      context.setLineDash([4,4]);
+    }
     context.moveTo(from[0], from[1]);
     context.lineTo(to[0], to[1]);
     var t = Math.atan2(to[1] - from[1], to[0] - from[0]) + Math.PI;
@@ -285,6 +288,8 @@ class Visualizer {
     context.lineTo(to[0], to[1]);
     context.lineTo(to[0] + size * Math.cos(t - Math.PI / 8), to[1] + size * Math.sin(t - Math.PI / 8));
     context.stroke();
+    context.setLineDash([]);
+
   }
   drawSample(canvas, center) {
     var context = canvas.getContext("2d");
@@ -337,6 +342,7 @@ class Visualizer {
           to: to,
           color: this.proposalColor,
           lw: 1,
+          // dashed: true, // todo maybe dashed momentum
         });
       }
 
