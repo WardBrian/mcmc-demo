@@ -12,7 +12,7 @@ MCMC.registerAlgorithm("WALNUTS", {
 
   init: function (self) {
     self.dt = 0.4;
-    self.maxError = 0.2;
+    self.maxError = 0.1;
   },
 
   reset: function (self) {

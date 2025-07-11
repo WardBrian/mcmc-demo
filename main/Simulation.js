@@ -8,7 +8,7 @@ class Simulation {
       hasTarget: false,
       dim: 2,
     };
-    this.delay = 250;
+    this.delay = 450;
     this.tweeningDelay = 0;
     this.autoplay = true;
     this.skipviz = 0;
@@ -236,23 +236,23 @@ window.onload = function () {
     if (e.code === "KeyE") {
       if (sim.autoplay) {
 
-      animationSettingCounter = (animationSettingCounter + 1) % 2;
+        animationSettingCounter = (animationSettingCounter + 1) % 2;
 
-      if (animationSettingCounter == 0) {
-        viz.animateProposal = false;
-        viz.delay = 0;
-        document.getElementById("info").innerHTML = "Fast forwarding...";
-        viz.showHistograms = true;
-      } else if (animationSettingCounter == 1) {
-        document.getElementById("info").innerHTML = "";
+        if (animationSettingCounter == 0) {
+          viz.animateProposal = false;
+          viz.delay = 10;
+          sim.delay = 10;
+          document.getElementById("info").innerHTML = "Fast forwarding...";
+        } else if (animationSettingCounter == 1) {
+          document.getElementById("info").innerHTML = "";
 
-        viz.animateProposal = true;
-        viz.delay = 250;
-        viz.showHistograms = false;
+          viz.animateProposal = true;
+          viz.delay = 450;
+          sim.delay = 450;
 
-        // todo -- tweak delta t, max error to force more animation?
+          // todo -- tweak delta t, max error to force more animation?
+        }
       }
-    }
     }
 
     if (e.code === "KeyS") {

@@ -56,8 +56,8 @@ class Visualizer {
     this.yHistCanvas.height = this.canvas.height;
 
     // set ymin, ymax assuming equal aspect ratio
-    this.ymin = 2* (this.xmin * this.canvas.height) / this.canvas.width;
-    this.ymax = 2*(this.xmax * this.canvas.height) / this.canvas.width;
+    this.ymin = 2 * (this.xmin * this.canvas.height) / this.canvas.width;
+    this.ymax = 2 * (this.xmax * this.canvas.height) / this.canvas.width;
     // scale and origin (location of 0, 0)
     this.scale =
       width > height ? this.canvas.width / (this.xmax - this.xmin) : this.canvas.height / (this.ymax - this.ymin);
@@ -297,6 +297,13 @@ class Visualizer {
     });
     context.globalCompositeOperation = "source-over";
   }
+  halvingColor(halvings) {
+    var maxHalvings = 10; // or set dynamically if you know the max
+    var t = Math.min(halvings / maxHalvings, 1.0);
+    var hsv = { h: 0.6 * t, s: 0.2 + 0.8 * t, v: 1 };
+    return Visualizer.HSVtoRGB(hsv);
+  }
+
   dequeue() {
     var event = this.queue.shift();
 
@@ -408,11 +415,7 @@ class Visualizer {
           for (var i = 0; i < event.nuts_trajectory.length; ++i) {
             if (event.nuts_trajectory[i].type == "leapfrog") {
               // Color by halvings: use a color scale for better distinction
-              var halvings = event.nuts_trajectory[i].halvings || 0;
-              var maxHalvings = 10; // or set dynamically if you know the max
-              var t = Math.min(halvings / maxHalvings, 1.0);
-              var hsv = { h: 0.6 * t , s: 0.2 + 0.8 * t, v: 1 };
-              var rgb = Visualizer.HSVtoRGB(hsv);
+              var rgb = this.halvingColor(event.nuts_trajectory[i].halvings || 0);
               var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
               // Draw a small arrow from 'from' to 'to'
               this.drawArrow(this.overlayCanvas, {
@@ -608,12 +611,7 @@ class Visualizer {
         });
       } else if (type == "leapfrog") {
         // Color by halvings: use a color scale for better distinction
-        var halvings = event.trajectory[event.offset].halvings || 0;
-        var maxHalvings = 10; // or set dynamically if you know the max
-        var t = Math.min(halvings / maxHalvings, 1.0);
-        // HSV: h=0.6 (blue) to h=0 (red), s=0.2 to 1, v=1
-        var hsv = { h: 0.6 * t , s: 0.2 + 0.8 * t, v: 1 };
-        var rgb = Visualizer.HSVtoRGB(hsv);
+        var rgb = this.halvingColor(event.trajectory[event.offset].halvings || 0);
         var fillColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
         // Draw a small arrow from 'from' to 'to'
         this.drawArrow(this.overlayCanvas, {
@@ -768,6 +766,22 @@ class Visualizer {
     // this.drawArrow(canvas, { from: last, to: last.add(eigs[0]), color: 'rgba(192,192,192,' +  this.alpha + ')', lw: 1 });
     // this.drawArrow(canvas, { from: last, to: last.add(eigs[1]), color: 'rgba(192,192,192,' +  this.alpha + ')', lw: 1 });
   }
+
+
+  horizontalLine(canvas, y) {
+    var context = canvas.getContext("2d");
+    context.beginPath();
+    context.setLineDash([5, 15]);
+    // counter to -2 in funnel code
+    var start = this.transform([this.xmin, y + 2]);
+    var end = this.transform([this.xmax, y + 2]);
+    context.moveTo(start[0], start[1]);
+    context.lineTo(end[0], end[1]);
+    context.stroke();
+    context.font = "" + this.fontSizePx + "px Arial";
+    context.fillText(`y=${y}`, start[0], start[1] + this.fontSizePx)
+  }
+
   drawDensityContours() {
     if (!this.simulation.mcmc.initialized) return;
 
@@ -795,6 +809,11 @@ class Visualizer {
     var context = this.densityCanvas.getContext("2d");
     context.globalAlpha = 0.5;
     context.drawImage(image, sx, sy, sWidth, sHeight, 0, 0, this.densityCanvas.width, this.densityCanvas.height);
+
+    this.horizontalLine(this.densityCanvas, 0)
+    this.horizontalLine(this.densityCanvas, 3)
+    this.horizontalLine(this.densityCanvas, -3)
+    this.horizontalLine(this.densityCanvas, -6)
   }
   // http://stackoverflow.com/questions/17242144/javascript-convert-hsb-hsv-color-to-rgb-accurately
   static HSVtoRGB(h, s, v) {
