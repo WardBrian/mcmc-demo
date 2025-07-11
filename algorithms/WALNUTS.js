@@ -239,6 +239,8 @@ MCMC.registerAlgorithm("WALNUTS", {
     var span_accum = make_leaf_span(theta, rho, grad, logp);
     for (var depth = 0; depth < 12; depth++) {
       var direction = (Math.random() < 0.5) ? -1 : 1;
+      trajectory.push({ type: direction > 0 ? "left" : "right" });
+
       var next_span = build_span(span_accum, direction, depth, trajectory);
       if (!next_span) {
         break;

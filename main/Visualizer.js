@@ -592,17 +592,20 @@ class Visualizer {
         });
       } else if (type == "left" || type == "right") {
         this.nutsColor = type == "right" ? "#09c" : "#66f";
-        var path = [event.trajectory[event.offset + 1].from, event.trajectory[event.offset + 1].to];
-        var color = event.trajectory[event.offset + 1].type == "accept" ? this.nutsColor : "#f00";
-        var from = type == "left" ? path[1] : path[0];
-        var to = type == "left" ? path[0] : path[1];
-        // this.drawArrow(this.overlayCanvas, {from: from, to: to, color: color, lw: 1, arrowScale: 0.7});
-        this.drawCircle(this.overlayCanvas, {
-          fill: color,
-          center: event.trajectory[event.offset + 1].from,
-          radius: 0.025,
-          lw: 0,
-        });
+        var next = event.trajectory[event.offset + 1];
+        if (next.type == "accept" || next.type == "reject") {
+          var path = [next.from, next.to];
+          var color = next.type === "accept" ? this.nutsColor : "#f00";
+          var from = type == "left" ? path[1] : path[0];
+          var to = type == "left" ? path[0] : path[1];
+          // this.drawArrow(this.overlayCanvas, {from: from, to: to, color: color, lw: 1, arrowScale: 0.7});
+          this.drawCircle(this.overlayCanvas, {
+            fill: color,
+            center: event.trajectory[event.offset + 1].from,
+            radius: 0.025,
+            lw: 0,
+          });
+        }
       } else if (type == "leapfrog") {
         // Color by halvings: use a color scale for better distinction
         var halvings = event.trajectory[event.offset].halvings || 0;
